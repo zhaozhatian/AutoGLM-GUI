@@ -9,6 +9,29 @@
 - 可选的 0~999 坐标网格叠加
 - ADBKeyboard 安装时的事件循环修复
 
+## 0. 前端静态资源（首次运行必看）
+
+fork 的 Git 仓库**不包含** `AutoGLM_GUI/static/`，因为它是前端构建产物，被 `.gitignore` 忽略。如果访问 `http://127.0.0.1:8765/` 返回 `404 Not Found`，说明缺少这个目录。
+
+二选一：
+
+**方式一：从已安装的 PyPI 包复制（最快）**
+
+```bat
+robocopy /E <site-packages>\AutoGLM_GUI\static AutoGLM_GUI\static
+```
+
+当前这台机器已经从 PyPI 包复制好了。
+
+**方式二：从源码构建**
+
+```bat
+npm install -g pnpm
+python scripts/build.py
+```
+
+构建脚本会把 `frontend/dist` 复制到 `AutoGLM_GUI/static/`。
+
 ## 1. 首次安装
 
 要求：
