@@ -133,7 +133,22 @@ git rebase upstream/main
 
 如果上游已经修复了 `<answer>` 解析或 ADBKeyboard 事件循环问题，可以删掉对应补丁，只保留网格和滑动增强。
 
-## 9. 可选：注册为 Windows 服务
+## 9. 开发测试
+
+```bat
+.venv\Scripts\python.exe -m pip install pytest
+.venv\Scripts\python.exe -m pytest tests/test_click_accuracy.py -q
+```
+
+重点测试：
+
+- `<answer>` 动作解析
+- 坐标校验与边界限制
+- 短距离滑动扩展、滑动时长
+- 坐标网格生成
+- ADBKeyboard 事件循环兼容
+
+## 10. 可选：注册为 Windows 服务
 
 当前使用手动脚本启动。如果后续需要开机自启和崩溃重启，可以用 NSSM：
 
