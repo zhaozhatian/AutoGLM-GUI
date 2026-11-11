@@ -97,5 +97,15 @@ class MessageBuilder:
         return {**message, "content": text_parts}
 
     @staticmethod
-    def build_screen_info(current_app: str) -> str:
-        return f"** Screen Info **\n\nCurrent App: {current_app}"
+    def build_screen_info(
+        current_app: str,
+        width: int | None = None,
+        height: int | None = None,
+    ) -> str:
+        text = f"** Screen Info **\n\nCurrent App: {current_app}"
+        if width and height:
+            text += (
+                f"\nScreen Size: {width}x{height} px"
+                "\nCoordinate System: origin at top-left; x and y are normalized 0-999."
+            )
+        return text

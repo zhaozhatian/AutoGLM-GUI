@@ -10,6 +10,16 @@ class GLMParser:
     def parse(self, raw_response: str) -> dict[str, Any]:
         action_str = raw_response.strip()
 
+        # OpenAI-compatible models often follow the prompt literally and wrap
+        # the action in <answer>...</answer>. Strip the wrapper before parsing;
+        # otherwise the trailing ")</answer>" becomes part of the last
+        # parameter (e.g. end="[800, 500])</answer") and later coordinate
+        # conversion raises "'<' not supported between int and str".
+        if action_str.startswith("<answer>"):
+            action_str = action_str[len("<answer>") :].strip()
+        if action_str.endswith("</answer>"):
+            action_str = action_str[: -len("</answer>")].strip()
+
         if action_str.startswith("finish("):
             return self._parse_finish(action_str)
         if action_str.startswith("do("):

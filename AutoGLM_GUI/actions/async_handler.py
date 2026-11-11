@@ -1,6 +1,7 @@
 """Async action handler for executing phone operations."""
 
 import asyncio
+import math
 from typing import Any
 from collections.abc import Callable
 
@@ -137,11 +138,64 @@ class AsyncActionHandler:
     def _convert_relative_to_absolute(
         self, element: list[int], screen_width: int, screen_height: int
     ) -> tuple[int, int]:
-        clamped_x = max(0, min(element[0], 1000))
-        clamped_y = max(0, min(element[1], 1000))
-        x = int(clamped_x / 1000 * screen_width)
-        y = int(clamped_y / 1000 * screen_height)
+        try:
+            normalized_x = float(element[0])
+            normalized_y = float(element[1])
+        except (TypeError, ValueError, IndexError) as exc:
+            raise ValueError(f"Invalid coordinates: {element!r}") from exc
+
+        clamped_x = max(0.0, min(normalized_x, 1000.0))
+        clamped_y = max(0.0, min(normalized_y, 1000.0))
+        max_x = max(0, screen_width - 1)
+        max_y = max(0, screen_height - 1)
+        x = max(0, min(max_x, int(round(clamped_x / 1000 * max_x))))
+        y = max(0, min(max_y, int(round(clamped_y / 1000 * max_y))))
         return x, y
+
+    @staticmethod
+    def _normalize_swipe(
+        start_x: int,
+        start_y: int,
+        end_x: int,
+        end_y: int,
+        screen_width: int,
+        screen_height: int,
+    ) -> tuple[int, int, int, int]:
+        """Keep swipes away from system edges and make short swipes effective."""
+        margin_x = max(1, int(screen_width * 0.05))
+        margin_y = max(1, int(screen_height * 0.07))
+
+        def clamp_x(value: int) -> int:
+            return max(margin_x, min(screen_width - margin_x, value))
+
+        def clamp_y(value: int) -> int:
+            return max(margin_y, min(screen_height - margin_y, value))
+
+        sx, sy = clamp_x(start_x), clamp_y(start_y)
+        ex, ey = clamp_x(end_x), clamp_y(end_y)
+
+        dx, dy = ex - sx, ey - sy
+        if abs(dx) >= abs(dy):
+            min_distance = max(1, int(screen_width * 0.28))
+            if abs(dx) < min_distance:
+                direction = 1 if dx >= 0 else -1
+                middle = (sx + ex) // 2
+                sx = clamp_x(middle - direction * min_distance // 2)
+                ex = clamp_x(middle + direction * min_distance // 2)
+        else:
+            min_distance = max(1, int(screen_height * 0.28))
+            if abs(dy) < min_distance:
+                direction = 1 if dy >= 0 else -1
+                middle = (sy + ey) // 2
+                sy = clamp_y(middle - direction * min_distance // 2)
+                ey = clamp_y(middle + direction * min_distance // 2)
+
+        return sx, sy, ex, ey
+
+    @staticmethod
+    def _swipe_duration(start_x: int, start_y: int, end_x: int, end_y: int) -> int:
+        distance = math.hypot(end_x - start_x, end_y - start_y)
+        return int(max(250, min(600, distance * 0.6)))
 
     async def _handle_launch(
         self, action: dict[str, Any], width: int, height: int
@@ -230,8 +284,14 @@ class AsyncActionHandler:
 
         start_x, start_y = self._convert_relative_to_absolute(start, width, height)
         end_x, end_y = self._convert_relative_to_absolute(end, width, height)
+        start_x, start_y, end_x, end_y = self._normalize_swipe(
+            start_x, start_y, end_x, end_y, width, height
+        )
+        duration_ms = self._swipe_duration(start_x, start_y, end_x, end_y)
 
-        await self.device.swipe(start_x, start_y, end_x, end_y)
+        await self.device.swipe(
+            start_x, start_y, end_x, end_y, duration_ms=duration_ms
+        )
         return ActionResult(True, False)
 
     async def _handle_back(

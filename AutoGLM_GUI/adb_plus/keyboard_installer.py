@@ -30,6 +30,23 @@ ENABLE_RETRY_DELAY_S = 0.4
 USER_CACHE_APK_PATH = Path.home() / ".cache" / "autoglm" / ADB_KEYBOARD_APK_FILENAME
 
 
+def _run_coro_sync(coro: Any) -> Any:
+    """Run an async command helper from synchronous code.
+
+    DeviceManager calls auto_setup() from inside a running event loop, where
+    asyncio.run() raises "cannot be called from a running event loop". Run the
+    coroutine in a dedicated thread in that case.
+    """
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return asyncio.run(coro)
+    import concurrent.futures
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+        return pool.submit(asyncio.run, coro).result()
+
+
 class ADBKeyboardInstaller:
     """ADB Keyboard Auto-Installer."""
 
@@ -60,7 +77,7 @@ class ADBKeyboardInstaller:
             logger.debug(
                 f"Checking if ADB Keyboard is installed on device {self.device_id or 'default'}"
             )
-            result = asyncio.run(
+            result = _run_coro_sync(
                 run_cmd_silently(self.adb_prefix + ["shell", "pm", "list", "packages"])
             )
             package_list = result.stdout.strip()
@@ -92,7 +109,7 @@ class ADBKeyboardInstaller:
             # This avoids SecurityException that `ime list -s` raises on some
             # OEM devices (e.g. ColorOS) that restrict the `ime` shell command
             # to privileged callers.
-            result = asyncio.run(
+            result = _run_coro_sync(
                 run_cmd_silently(
                     self.adb_prefix
                     + [
@@ -113,7 +130,7 @@ class ADBKeyboardInstaller:
             # Fallback: use `ime list -s` for devices where settings returns
             # empty or null (older Android versions, custom ROMs).
             logger.debug("settings returned empty, falling back to ime list -s")
-            result = asyncio.run(
+            result = _run_coro_sync(
                 run_cmd_silently(self.adb_prefix + ["shell", "ime", "list", "-s"])
             )
             ime_list_enabled = result.stdout.strip()
@@ -226,7 +243,7 @@ class ADBKeyboardInstaller:
 
         try:
             logger.info(f"Installing ADB Keyboard from {apk_path}")
-            result = asyncio.run(
+            result = _run_coro_sync(
                 run_cmd_silently(self.adb_prefix + ["install", "-r", str(apk_path)])
             )
 
@@ -257,7 +274,7 @@ class ADBKeyboardInstaller:
         try:
             logger.info("Enabling ADB Keyboard IME")
             # Enable keyboard
-            result = asyncio.run(
+            result = _run_coro_sync(
                 run_cmd_silently(
                     self.adb_prefix + ["shell", "ime", "enable", ADB_KEYBOARD_IME]
                 )
@@ -291,7 +308,7 @@ class ADBKeyboardInstaller:
         query returns False; the caller should not spin on command errors.
         """
         try:
-            result = asyncio.run(
+            result = _run_coro_sync(
                 run_cmd_silently(self.adb_prefix + ["shell", "ime", "list", "-a"])
             )
         except Exception as e:

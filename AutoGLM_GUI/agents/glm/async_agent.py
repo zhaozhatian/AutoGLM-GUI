@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import os
 import traceback
 from collections.abc import AsyncGenerator
 from typing import Any
@@ -121,7 +122,23 @@ class AsyncGLMAgent(AsyncAgentBase, AsyncAgent):
                 for message in self._context
             ]
 
-            screen_info = MessageBuilder.build_screen_info(current_app)
+            screen_info = MessageBuilder.build_screen_info(
+                current_app, screenshot.width, screenshot.height
+            )
+
+            # Optional coordinate grid: helps general-purpose vision models
+            # estimate the 0-999 coordinate space more accurately.
+            model_image_data = screenshot.base64_data
+            if os.environ.get("AUTOGLM_GRID_OVERLAY", "0") == "1":
+                try:
+                    from AutoGLM_GUI.model.grid_overlay import add_grid_overlay
+
+                    model_image_data = add_grid_overlay(
+                        model_image_data, screenshot.width, screenshot.height
+                    )
+                except Exception as exc:
+                    logger.warning("Grid overlay failed, using raw screenshot: %s", exc)
+
             if self._step_count == 1 and self._pending_task is not None:
                 reference_notice = MessageBuilder.build_user_reference_images_notice(
                     len(self._pending_reference_images)
@@ -137,13 +154,13 @@ class AsyncGLMAgent(AsyncAgentBase, AsyncAgent):
                 )
                 self._pending_task = None
                 images = [
-                    {"mime_type": "image/png", "data": screenshot.base64_data},
+                    {"mime_type": "image/png", "data": model_image_data},
                     *self._pending_reference_images,
                 ]
                 self._pending_reference_images = []
             else:
                 text_content = f"** Screen Info **\n\n{screen_info}"
-                images = [{"mime_type": "image/png", "data": screenshot.base64_data}]
+                images = [{"mime_type": "image/png", "data": model_image_data}]
             self._context.append(
                 MessageBuilder.create_user_message_with_images(
                     text=text_content,
