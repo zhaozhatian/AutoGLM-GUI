@@ -104,6 +104,7 @@ class TaskStore:
                 device_serial TEXT NOT NULL,
                 status TEXT NOT NULL,
                 input_text TEXT NOT NULL,
+                push_payload TEXT NULL,
                 final_message TEXT NULL,
                 error_message TEXT NULL,
                 stop_reason TEXT NULL,
@@ -151,6 +152,10 @@ class TaskStore:
             self._conn.execute("ALTER TABLE task_runs ADD COLUMN stop_reason TEXT NULL")
         if "trace_id" not in columns:
             self._conn.execute("ALTER TABLE task_runs ADD COLUMN trace_id TEXT NULL")
+        if "push_payload" not in columns:
+            self._conn.execute(
+                "ALTER TABLE task_runs ADD COLUMN push_payload TEXT NULL"
+            )
         self._conn.commit()
 
     def _fetchone(self, query: str, params: tuple[Any, ...] = ()) -> sqlite3.Row | None:
@@ -171,7 +176,14 @@ class TaskStore:
     def _row_to_task(row: sqlite3.Row | None) -> TaskRecord | None:
         if row is None:
             return None
-        return dict(row)
+        data = dict(row)
+        raw_payload = data.get("push_payload")
+        if raw_payload:
+            try:
+                data["push_payload"] = json.loads(raw_payload)
+            except (TypeError, ValueError):
+                data["push_payload"] = None
+        return data
 
     @staticmethod
     def _row_to_event(row: sqlite3.Row | None) -> TaskEventRecord | None:
@@ -374,6 +386,7 @@ class TaskStore:
         status: str = TaskStatus.QUEUED.value,
         task_id: str | None = None,
         trace_id: str | None = None,
+        push_payload: dict[str, Any] | None = None,
     ) -> TaskRecord:
         self._ensure_ready()
         now = _now_iso()
@@ -402,9 +415,9 @@ class TaskStore:
                     INSERT INTO task_runs (
                         id, source, executor_key, session_id, scheduled_task_id, workflow_uuid,
                         schedule_fire_id, device_id, device_serial, status, input_text,
-                        final_message, error_message, stop_reason, trace_id, step_count,
-                        created_at, started_at, finished_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, ?, 0, ?, NULL, NULL)
+                        push_payload, final_message, error_message, stop_reason, trace_id,
+                        step_count, created_at, started_at, finished_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, ?, 0, ?, NULL, NULL)
                     """,
                     (
                         record_id,
@@ -418,6 +431,9 @@ class TaskStore:
                         device_serial,
                         status,
                         input_text,
+                        json.dumps(push_payload, ensure_ascii=False)
+                        if push_payload is not None
+                        else None,
                         task_trace_id,
                         now,
                     ),

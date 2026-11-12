@@ -33,6 +33,8 @@ from . import (
     mcp,
     media,
     metrics,
+    push_gui,
+    push_ingest,
     scheduled_tasks,
     terminal,
     tasks,
@@ -161,6 +163,7 @@ def create_app() -> FastAPI:
         asyncio.create_task(qr_pairing_manager.cleanup_expired_sessions())
 
         from AutoGLM_GUI.device_manager import DeviceManager
+        from AutoGLM_GUI.push.dispatcher import push_dispatcher
         from AutoGLM_GUI.scheduler_manager import scheduler_manager
         from AutoGLM_GUI.task_manager import task_manager
 
@@ -171,12 +174,15 @@ def create_app() -> FastAPI:
         await task_manager.start()
         # Start scheduled task scheduler
         await scheduler_manager.start()
+        # Start push dispatcher (ingest -> queue -> webhook)
+        push_dispatcher.start()
 
         # Run MCP lifespan
         async with mcp_app.lifespan(app):
             yield
 
         # App shutdown
+        await push_dispatcher.stop()
         await scheduler_manager.shutdown()
         await task_manager.shutdown()
 
@@ -201,6 +207,8 @@ def create_app() -> FastAPI:
     app.include_router(control.router)
     app.include_router(media.router)
     app.include_router(metrics.router)
+    app.include_router(push_gui.router)
+    app.include_router(push_ingest.router)
     app.include_router(scheduled_tasks.router)
     app.include_router(terminal.router)
     app.include_router(tasks.router)

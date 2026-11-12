@@ -46,6 +46,8 @@ class TaskManager:
         self.register_executor(
             "scheduled_layered_workflow", self._execute_scheduled_layered_workflow
         )
+        self.register_executor("push_message", self._execute_scheduled_workflow)
+        self.register_executor("push_deterministic", self._execute_push_deterministic)
 
     def register_executor(self, executor_key: str, executor: TaskExecutor) -> None:
         self._executors[executor_key] = executor
@@ -208,6 +210,34 @@ class TaskManager:
             device_id=device_id,
             device_serial=device_serial,
             input_text=input_text,
+        )
+        self._completion_events[task["id"]] = asyncio.Event()
+        self._ensure_worker(device_id)
+        return task
+
+    async def enqueue_push_task(
+        self,
+        *,
+        device_id: str,
+        device_serial: str,
+        input_text: str,
+        group_name: str,
+        message: str,
+        mention_all: bool = True,
+    ) -> TaskRecord:
+        """Enqueue a push-driven group message for one device."""
+        task = await asyncio.to_thread(
+            self.store.create_task_run,
+            source="push",
+            executor_key="push_deterministic",
+            device_id=device_id,
+            device_serial=device_serial,
+            input_text=input_text,
+            push_payload={
+                "group_name": group_name,
+                "message": message,
+                "mention_all": mention_all,
+            },
         )
         self._completion_events[task["id"]] = asyncio.Event()
         self._ensure_worker(device_id)
@@ -835,6 +865,62 @@ class TaskManager:
             metrics_source="scheduled",
         )
 
+    async def _execute_push_deterministic(self, task: TaskRecord) -> None:
+        """Send one group message with the deterministic WeChat driver."""
+        from AutoGLM_GUI.push.wechat_sender import (
+            WeChatSendCancelled,
+            send_group_message,
+        )
+
+        task_id = str(task["id"])
+        device_id = str(task["device_id"])
+        payload = task.get("push_payload") or {}
+        group_name = str(payload.get("group_name") or "")
+        message = str(payload.get("message") or "")
+        mention_all = bool(payload.get("mention_all", True))
+        trace_id = trace_module.create_trace_id()
+        step_count = 0
+
+        try:
+            with trace_module.trace_context(trace_id):
+                await asyncio.to_thread(self.store.set_task_trace_id, task_id, trace_id)
+                result = await asyncio.to_thread(
+                    send_group_message,
+                    device_id=device_id,
+                    group_name=group_name,
+                    message=message,
+                    mention_all=mention_all,
+                    cancel_check=lambda: task_id in self._cancel_requested,
+                )
+                step_count = len(result.get("steps", []))
+            await self._finalize_task(
+                task_id=task_id,
+                status=TaskStatus.SUCCEEDED.value,
+                final_message=f"已发送到 {group_name}",
+                step_count=step_count,
+                trace_id=trace_id,
+                replay_source="push",
+            )
+        except WeChatSendCancelled:
+            await self._finalize_task(
+                task_id=task_id,
+                status=TaskStatus.CANCELLED.value,
+                final_message="Task cancelled by user",
+                step_count=step_count,
+                trace_id=trace_id,
+                replay_source="push",
+            )
+        except Exception as exc:
+            logger.exception("Deterministic push send failed for task %s", task_id)
+            await self._finalize_task(
+                task_id=task_id,
+                status=TaskStatus.FAILED.value,
+                final_message=str(exc),
+                step_count=step_count,
+                trace_id=trace_id,
+                replay_source="push",
+            )
+
     async def _execute_scheduled_workflow(self, task: TaskRecord) -> None:
         from AutoGLM_GUI.exceptions import AgentInitializationError, DeviceBusyError
         from AutoGLM_GUI.phone_agent_manager import PhoneAgentManager
@@ -858,7 +944,7 @@ class TaskManager:
                 await self._write_replay_task_start(
                     task=task,
                     trace_id=trace_id,
-                    source="scheduled",
+                    source=str(task.get("source") or "scheduled"),
                 )
                 acquired = await manager.acquire_device_async(
                     device_id,

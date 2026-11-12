@@ -7,6 +7,27 @@ from pathlib import Path
 from AutoGLM_GUI.task_store import TaskStatus, TaskStore
 
 
+def test_task_store_roundtrips_push_payload(tmp_path: Path) -> None:
+    store = TaskStore(tmp_path / "tasks.db")
+    payload = {
+        "group_name": "26.11.12小快灵测试一群",
+        "message": "第一行\n第二行",
+        "mention_all": True,
+    }
+    task = store.create_task_run(
+        source="push",
+        executor_key="push_deterministic",
+        device_id="192.168.2.98:42851",
+        device_serial="56fe42860624",
+        input_text="prompt",
+        push_payload=payload,
+    )
+
+    loaded = store.get_task(task["id"])
+    assert loaded is not None
+    assert loaded["push_payload"] == payload
+
+
 def test_task_store_creates_sessions_and_task_events(tmp_path: Path) -> None:
     store = TaskStore(tmp_path / "tasks.db")
 
