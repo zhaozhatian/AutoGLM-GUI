@@ -18,7 +18,16 @@ services:
       AUTOGLM_PUSH_TIMEZONE: ${AUTOGLM_PUSH_TIMEZONE:-Asia/Shanghai}
       AUTOGLM_CORS_ORIGINS: ${AUTOGLM_CORS_ORIGINS:-*}
       TZ: ${TZ:-Asia/Shanghai}
+      # Point the container's adb client at the Mac mini gateway:
+      #   Mac mini: adb -a -P 5037 nodaemon server start
+      #   Tailscale IP of the Mac mini, port 5037.
+      ADB_SERVER_SOCKET: ${ADB_SERVER_SOCKET:-}
+      # Use the same platform-tools version as the Mac mini. PATH makes
+      # `shutil.which("adb")` pick this before the image's apt adb.
+      PATH: /opt/platform-tools:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+      AUTOGLM_ADB_PATH: ${AUTOGLM_ADB_PATH:-/opt/platform-tools/adb}
     volumes:
+      - ${PLATFORM_TOOLS_DIR:-/opt/platform-tools}:/opt/platform-tools:ro
       - autoglm_config:/root/.config/autoglm
       - autoglm_logs:/app/logs
     healthcheck:
@@ -31,8 +40,12 @@ services:
     # the task queue in memory plus SQLite under /root/.config/autoglm.
     # Do not scale this service horizontally.
     #
-    # On Linux hosts that need mDNS discovery (Wireless debugging pairing),
-    # add: network_mode: host and drop the ports mapping.
+    # If the container cannot reach the Tailscale IP of the Mac mini
+    # (`docker compose exec autoglm adb devices` hangs/fails), switch to host
+    # networking instead of the ports mapping:
+    #   network_mode: host
+    # and remove the `ports` block above. The service then listens on host
+    # 127.0.0.1:8000; keep the security group closed for 8000.
 
 volumes:
   autoglm_config:

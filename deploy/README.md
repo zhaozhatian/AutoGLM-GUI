@@ -78,19 +78,75 @@ caddy run --config deploy/Caddyfile
 
 打开 `https://app.example.com`，用反向代理的 Basic Auth 登录。
 
-## 设备接入
+## 设备接入（Mac mini 网关 + Docker）
 
-1. 在云服务器与手机所在局域网之间建立 WireGuard/Tailscale 隧道。
-2. 手机开启「无线调试」，在服务器上执行：
-   ```bash
-   adb connect <手机内网IP>:<端口>
-   adb devices
-   ```
-3. 设备出现在 `GET /api/ingest/devices`（带 token）即接入成功。
-4. 首次使用需要在手机上允许「USB 安装」并安装 ADB Keyboard（服务会自动尝试）。
+不要把手机 ADB 暴露到公网。推荐办公网放一台 Mac mini 作为网关，手机 USB 连它；ECS 上的容器通过 Tailscale 访问 Mac mini 的 adb server（端口 5037）。
 
-> 重启服务器后 adb TCP 连接可能丢失，需要重新 `adb connect`。建议把该命令写入
-> VPN 启动脚本，或在设备恢复后重新连接。
+### Mac mini（网关）
+
+```bash
+# 1. 安装 platform-tools，版本与 ECS 保持一致（如 37.0.1）
+mkdir -p ~/platform-tools && cd ~/platform-tools
+curl -O https://dl.google.com/android/repository/platform-tools-latest-darwin.zip
+unzip platform-tools-latest-darwin.zip
+
+# 2. 手机 USB 接入并授权调试
+~/platform-tools/platform-tools/adb devices
+
+# 3. 监听所有网卡的 adb server
+adb kill-server
+adb -a -P 5037 nodaemon server start
+
+# 4. Tailscale
+brew install tailscale && sudo brew services start tailscale
+tailscale up
+tailscale ip -4        # 例：100.x.x.10
+```
+
+- 关闭休眠：`sudo pmset -a sleep 0 disksleep 0`
+- 防火墙只允许 Tailscale 网段（`100.64.0.0/10`）访问 5037
+- 用 launchd 保活 adb server（示例见 `docs`/前文），避免 Mac 重启后失效
+
+### ECS（Docker）
+
+```bash
+# 1. 下载 Linux 版 platform-tools（版本与 Mac mini 对齐）
+curl -o /tmp/pt.zip https://dl.google.com/android/repository/platform-tools-latest-linux.zip
+sudo unzip -q /tmp/pt.zip -d /opt
+/opt/platform-tools/adb version
+
+# 2. 确认 ECS 能访问 Mac mini 的 adb server
+nc -vz 100.x.x.10 5037
+
+# 3. deploy/.env
+ADB_SERVER_SOCKET=tcp:100.x.x.10:5037
+PLATFORM_TOOLS_DIR=/opt/platform-tools
+
+# 4. 启动
+docker compose -f deploy/docker-compose.prod.yml up -d --build
+
+# 5. 容器内验证
+docker compose -f deploy/docker-compose.prod.yml exec autoglm adb devices
+curl -H "X-API-Key: $AUTOGLM_INGEST_TOKEN" http://127.0.0.1:8000/api/ingest/devices
+```
+
+如果容器访问不到 `100.x`，把 compose 改成 `network_mode: host` 并去掉 `ports`（文件里有注释）。此时服务监听宿主机 `127.0.0.1:8000`，阿里云安全组仍然不要开放 8000。
+
+### 手机准备
+
+1. 开发者选项 → USB 调试，首次连接在手机上点「允许」
+2. 充电时保持唤醒；锁屏设为「无」或长超时（发送器不能解 PIN）
+3. 关闭微信、ADBKeyboard 的电池优化
+4. 小米/HyperOS 开启「USB 安装」，否则 ADBKeyboard 装不上
+5. 微信保持登录，群名与后台配置一致
+
+### 安全
+
+- 阿里云安全组**不要**开放 5037 / 5555
+- Mac mini 的 5037 只允许 Tailscale 网段访问
+- 发送服务 8000 只绑 `127.0.0.1`，外部访问走 Caddy/Nginx + TLS + Basic Auth
+
+> 如果不用 Tailscale，也可以在 Mac mini 上用 `autossh -R 5037:127.0.0.1:5037` 反向隧道到 ECS；此时 ECS 上设 `ADB_SERVER_SOCKET=tcp:127.0.0.1:5037`，容器需要 host 网络或把隧道绑到容器可达的地址。
 
 ## 数据与备份
 
