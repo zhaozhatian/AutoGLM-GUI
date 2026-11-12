@@ -18,7 +18,12 @@ from AutoGLM_GUI.adb_plus.display import (
     select_primary_display_async,
 )
 from AutoGLM_GUI.logger import logger
-from AutoGLM_GUI.platform_utils import is_windows, run_cmd_silently, spawn_process
+from AutoGLM_GUI.platform_utils import (
+    build_adb_command,
+    is_windows,
+    run_cmd_silently,
+    spawn_process,
+)
 from AutoGLM_GUI.scrcpy_protocol import (
     PTS_CONFIG,
     PTS_KEYFRAME,
@@ -245,9 +250,7 @@ class ScrcpyStreamer:
 
     async def _cleanup_existing_server(self) -> None:
         """Kill existing scrcpy server processes and wait for port release."""
-        cmd_base = ["adb"]
-        if self.device_id:
-            cmd_base.extend(["-s", self.device_id])
+        cmd_base = build_adb_command(self.device_id)
 
         # Method 1: Try pkill
         logger.debug("Killing scrcpy processes via pkill...")
@@ -285,18 +288,14 @@ class ScrcpyStreamer:
 
     async def _push_server(self) -> None:
         """Push scrcpy-server to device."""
-        cmd = ["adb"]
-        if self.device_id:
-            cmd.extend(["-s", self.device_id])
+        cmd = build_adb_command(self.device_id)
         cmd.extend(["push", self.scrcpy_server_path, "/data/local/tmp/scrcpy-server"])
 
         await run_cmd_silently(cmd)
 
     async def _setup_port_forward(self) -> None:
         """Setup ADB port forwarding."""
-        cmd = ["adb"]
-        if self.device_id:
-            cmd.extend(["-s", self.device_id])
+        cmd = build_adb_command(self.device_id)
         cmd.extend(["forward", f"tcp:{self.port}", "localabstract:scrcpy"])
 
         await run_cmd_silently(cmd)
@@ -345,9 +344,7 @@ class ScrcpyStreamer:
         retry_delay = 1.0  # Reduced from 2s (cleanup handles waiting now)
 
         for attempt in range(max_retries):
-            cmd = ["adb"]
-            if self.device_id:
-                cmd.extend(["-s", self.device_id])
+            cmd = build_adb_command(self.device_id)
 
             # Build server command
             server_args = [
@@ -599,9 +596,7 @@ class ScrcpyStreamer:
 
         if self.forward_cleanup_needed:
             try:
-                cmd = ["adb"]
-                if self.device_id:
-                    cmd.extend(["-s", self.device_id])
+                cmd = build_adb_command(self.device_id)
                 cmd.extend(["forward", "--remove", f"tcp:{self.port}"])
                 subprocess.run(
                     cmd,

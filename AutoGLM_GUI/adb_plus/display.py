@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from AutoGLM_GUI.logger import logger
 from AutoGLM_GUI.platform_utils import (
     build_adb_command,
+    resolve_adb_path,
     run_cmd_silently,
     run_cmd_silently_sync,
 )
@@ -62,22 +63,25 @@ _SURFACE_FLINGER_DISPLAY_ID_RE = re.compile(
 
 def clear_display_selection_cache(
     device_id: str | None = None,
-    adb_path: str = "adb",
+    adb_path: str | None = None,
 ) -> None:
     """Clear cached display selections."""
     if device_id is None:
         _display_selection_cache.clear()
         return
 
-    _display_selection_cache.pop(_cache_key(device_id, adb_path), None)
+    _display_selection_cache.pop(
+        _cache_key(device_id, adb_path or resolve_adb_path()), None
+    )
 
 
 def select_primary_display(
     device_id: str | None = None,
-    adb_path: str = "adb",
+    adb_path: str | None = None,
     ttl_seconds: float = DISPLAY_SELECTION_TTL_SECONDS,
 ) -> DisplaySelection | None:
     """Select the primary display for a local ADB device."""
+    adb_path = adb_path or resolve_adb_path()
     cached = _get_cached_selection(device_id, adb_path)
     if cached is not None:
         return cached.selection
@@ -89,10 +93,11 @@ def select_primary_display(
 
 async def select_primary_display_async(
     device_id: str | None = None,
-    adb_path: str = "adb",
+    adb_path: str | None = None,
     ttl_seconds: float = DISPLAY_SELECTION_TTL_SECONDS,
 ) -> DisplaySelection | None:
     """Async primary-display selection for API and streaming paths."""
+    adb_path = adb_path or resolve_adb_path()
     cached = _get_cached_selection(device_id, adb_path)
     if cached is not None:
         return cached.selection

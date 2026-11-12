@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from AutoGLM_GUI.logger import logger
-from AutoGLM_GUI.platform_utils import run_cmd_silently
+from AutoGLM_GUI.platform_utils import build_adb_command, run_cmd_silently
 
 ADB_KEYBOARD_PACKAGE = "com.android.adbkeyboard"
 ADB_KEYBOARD_IME = "com.android.adbkeyboard/.AdbIME"
@@ -58,9 +58,7 @@ class ADBKeyboardInstaller:
             device_id: Optional ADB device ID for multi-device scenarios.
         """
         self.device_id = device_id
-        self.adb_prefix = ["adb"]
-        if device_id:
-            self.adb_prefix.extend(["-s", device_id])
+        self.adb_prefix = build_adb_command(device_id)
 
         logger.debug(
             f"Initialized ADBKeyboardInstaller for device: {device_id or 'default'}"

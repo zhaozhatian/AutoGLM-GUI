@@ -1,6 +1,7 @@
 """Platform-aware subprocess helpers to avoid duplicated Windows branches."""
 
 import asyncio
+import os
 import platform
 import subprocess
 from asyncio.subprocess import Process as AsyncProcess
@@ -81,14 +82,27 @@ async def spawn_process(
     return await asyncio.create_subprocess_exec(*cmd, stdout=stdout, stderr=stderr)
 
 
-def build_adb_command(device_id: str | None = None, adb_path: str = "adb") -> list[str]:
+def resolve_adb_path() -> str:
+    """Return the ADB executable to use.
+
+    The CLI locates (or downloads) ADB at startup and exports the result as
+    ``AUTOGLM_ADB_PATH``. Reading it here keeps every code path on the same
+    binary instead of relying on ``adb`` happening to be in ``PATH``.
+    """
+    return os.environ.get("AUTOGLM_ADB_PATH") or "adb"
+
+
+def build_adb_command(
+    device_id: str | None = None, adb_path: str | None = None
+) -> list[str]:
     """Build ADB command prefix with optional device specifier.
 
     This centralizes the logic for constructing ADB commands across all modules.
 
     Args:
         device_id: Optional ADB device serial (e.g., "192.168.1.100:5555" or USB serial)
-        adb_path: Path to ADB executable (default: "adb")
+        adb_path: Path to ADB executable. Defaults to ``AUTOGLM_ADB_PATH`` when
+            set, otherwise ``adb`` from ``PATH``.
 
     Returns:
         List of command parts to use with subprocess (e.g., ["adb", "-s", "device_id"])
@@ -101,7 +115,7 @@ def build_adb_command(device_id: str | None = None, adb_path: str = "adb") -> li
         >>> build_adb_command(device_id="emulator-5554", adb_path="/usr/local/bin/adb")
         ['/usr/local/bin/adb', '-s', 'emulator-5554']
     """
-    cmd = [adb_path]
+    cmd = [adb_path or resolve_adb_path()]
     if device_id:
         cmd.extend(["-s", device_id])
     return cmd

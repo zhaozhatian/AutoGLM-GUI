@@ -22,7 +22,7 @@ from AutoGLM_GUI.adb_plus.display import (
 )
 from AutoGLM_GUI.exceptions import DeviceNotAvailableError
 from AutoGLM_GUI.logger import logger
-from AutoGLM_GUI.platform_utils import is_windows
+from AutoGLM_GUI.platform_utils import is_windows, resolve_adb_path
 from AutoGLM_GUI.trace import TraceSpan, trace_span
 
 
@@ -41,7 +41,7 @@ class Screenshot:
 
 def capture_screenshot(
     device_id: str | None = None,
-    adb_path: str = "adb",
+    adb_path: str | None = None,
     timeout: int = 10,
     retries: int = 1,
 ) -> Screenshot:
@@ -50,7 +50,8 @@ def capture_screenshot(
 
     Args:
         device_id: Optional device serial.
-        adb_path: Path to adb binary.
+        adb_path: Path to adb binary. Defaults to ``AUTOGLM_ADB_PATH`` when set,
+            otherwise ``adb`` from ``PATH``.
         timeout: Per-attempt timeout in seconds.
         retries: Extra attempts after the first try.
 
@@ -60,6 +61,7 @@ def capture_screenshot(
     Raises:
         DeviceNotAvailableError: When device is not found or offline.
     """
+    adb_path = adb_path or resolve_adb_path()
     with trace_span(
         "adb.capture_screenshot",
         attrs={"device_id": device_id, "timeout": timeout, "retries": retries},
@@ -171,11 +173,12 @@ def _try_capture(
 
 async def capture_screenshot_async(
     device_id: str | None = None,
-    adb_path: str = "adb",
+    adb_path: str | None = None,
     timeout: int = 10,
     retries: int = 1,
 ) -> Screenshot:
     """Async screenshot capture for FastAPI handlers."""
+    adb_path = adb_path or resolve_adb_path()
     with trace_span(
         "adb.capture_screenshot_async",
         attrs={"device_id": device_id, "timeout": timeout, "retries": retries},

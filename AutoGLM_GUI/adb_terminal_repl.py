@@ -2,14 +2,15 @@
 
 from __future__ import annotations
 
-import os
 import shlex
 import subprocess
 import sys
 
+from AutoGLM_GUI.platform_utils import resolve_adb_path
+
 
 def _resolve_adb_binary() -> str:
-    return os.environ.get("AUTOGLM_ADB_PATH", "adb")
+    return resolve_adb_path()
 
 
 def _print_banner() -> None:

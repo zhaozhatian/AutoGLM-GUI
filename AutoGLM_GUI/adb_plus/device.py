@@ -4,21 +4,23 @@ import asyncio
 
 from AutoGLM_GUI.exceptions import DeviceNotAvailableError
 from AutoGLM_GUI.logger import logger
-from AutoGLM_GUI.platform_utils import run_cmd_silently
+from AutoGLM_GUI.platform_utils import build_adb_command, run_cmd_silently
 
 
-async def check_device_available(device_id: str | None = None) -> None:
+async def check_device_available(
+    device_id: str | None = None, adb_path: str | None = None
+) -> None:
     """Check if the device is available.
 
     Args:
         device_id: ADB device serial (None for default device)
+        adb_path: Path to ADB executable. Defaults to ``AUTOGLM_ADB_PATH`` when
+            set, otherwise ``adb`` from ``PATH``.
 
     Raises:
         DeviceNotAvailableError: If device is not reachable
     """
-    cmd = ["adb"]
-    if device_id:
-        cmd.extend(["-s", device_id])
+    cmd = build_adb_command(device_id, adb_path)
     cmd.append("get-state")
 
     try:
