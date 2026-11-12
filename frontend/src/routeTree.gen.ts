@@ -9,43 +9,19 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as WorkflowsRouteImport } from './routes/workflows'
-import { Route as TerminalRouteImport } from './routes/terminal'
-import { Route as ScheduledTasksRouteImport } from './routes/scheduled-tasks'
-import { Route as LogsRouteImport } from './routes/logs'
-import { Route as HistoryRouteImport } from './routes/history'
-import { Route as ChatRouteImport } from './routes/chat'
-import { Route as AboutRouteImport } from './routes/about'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AboutRouteImport } from './routes/about'
+import { Route as ChatRouteImport } from './routes/chat'
+import { Route as HistoryRouteImport } from './routes/history'
+import { Route as LogsRouteImport } from './routes/logs'
+import { Route as PushRouteImport } from './routes/push'
+import { Route as ScheduledTasksRouteImport } from './routes/scheduled-tasks'
+import { Route as TerminalRouteImport } from './routes/terminal'
+import { Route as WorkflowsRouteImport } from './routes/workflows'
 
-const WorkflowsRoute = WorkflowsRouteImport.update({
-  id: '/workflows',
-  path: '/workflows',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const TerminalRoute = TerminalRouteImport.update({
-  id: '/terminal',
-  path: '/terminal',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ScheduledTasksRoute = ScheduledTasksRouteImport.update({
-  id: '/scheduled-tasks',
-  path: '/scheduled-tasks',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const LogsRoute = LogsRouteImport.update({
-  id: '/logs',
-  path: '/logs',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const HistoryRoute = HistoryRouteImport.update({
-  id: '/history',
-  path: '/history',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ChatRoute = ChatRouteImport.update({
-  id: '/chat',
-  path: '/chat',
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AboutRoute = AboutRouteImport.update({
@@ -53,9 +29,39 @@ const AboutRoute = AboutRouteImport.update({
   path: '/about',
   getParentRoute: () => rootRouteImport,
 } as any)
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
+const ChatRoute = ChatRouteImport.update({
+  id: '/chat',
+  path: '/chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HistoryRoute = HistoryRouteImport.update({
+  id: '/history',
+  path: '/history',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LogsRoute = LogsRouteImport.update({
+  id: '/logs',
+  path: '/logs',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PushRoute = PushRouteImport.update({
+  id: '/push',
+  path: '/push',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ScheduledTasksRoute = ScheduledTasksRouteImport.update({
+  id: '/scheduled-tasks',
+  path: '/scheduled-tasks',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TerminalRoute = TerminalRouteImport.update({
+  id: '/terminal',
+  path: '/terminal',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const WorkflowsRoute = WorkflowsRouteImport.update({
+  id: '/workflows',
+  path: '/workflows',
   getParentRoute: () => rootRouteImport,
 } as any)
 
@@ -65,6 +71,7 @@ export interface FileRoutesByFullPath {
   '/chat': typeof ChatRoute
   '/history': typeof HistoryRoute
   '/logs': typeof LogsRoute
+  '/push': typeof PushRoute
   '/scheduled-tasks': typeof ScheduledTasksRoute
   '/terminal': typeof TerminalRoute
   '/workflows': typeof WorkflowsRoute
@@ -75,6 +82,7 @@ export interface FileRoutesByTo {
   '/chat': typeof ChatRoute
   '/history': typeof HistoryRoute
   '/logs': typeof LogsRoute
+  '/push': typeof PushRoute
   '/scheduled-tasks': typeof ScheduledTasksRoute
   '/terminal': typeof TerminalRoute
   '/workflows': typeof WorkflowsRoute
@@ -86,6 +94,7 @@ export interface FileRoutesById {
   '/chat': typeof ChatRoute
   '/history': typeof HistoryRoute
   '/logs': typeof LogsRoute
+  '/push': typeof PushRoute
   '/scheduled-tasks': typeof ScheduledTasksRoute
   '/terminal': typeof TerminalRoute
   '/workflows': typeof WorkflowsRoute
@@ -98,6 +107,7 @@ export interface FileRouteTypes {
     | '/chat'
     | '/history'
     | '/logs'
+    | '/push'
     | '/scheduled-tasks'
     | '/terminal'
     | '/workflows'
@@ -108,6 +118,7 @@ export interface FileRouteTypes {
     | '/chat'
     | '/history'
     | '/logs'
+    | '/push'
     | '/scheduled-tasks'
     | '/terminal'
     | '/workflows'
@@ -118,6 +129,7 @@ export interface FileRouteTypes {
     | '/chat'
     | '/history'
     | '/logs'
+    | '/push'
     | '/scheduled-tasks'
     | '/terminal'
     | '/workflows'
@@ -129,6 +141,7 @@ export interface RootRouteChildren {
   ChatRoute: typeof ChatRoute
   HistoryRoute: typeof HistoryRoute
   LogsRoute: typeof LogsRoute
+  PushRoute: typeof PushRoute
   ScheduledTasksRoute: typeof ScheduledTasksRoute
   TerminalRoute: typeof TerminalRoute
   WorkflowsRoute: typeof WorkflowsRoute
@@ -136,46 +149,11 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/workflows': {
-      id: '/workflows'
-      path: '/workflows'
-      fullPath: '/workflows'
-      preLoaderRoute: typeof WorkflowsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/terminal': {
-      id: '/terminal'
-      path: '/terminal'
-      fullPath: '/terminal'
-      preLoaderRoute: typeof TerminalRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/scheduled-tasks': {
-      id: '/scheduled-tasks'
-      path: '/scheduled-tasks'
-      fullPath: '/scheduled-tasks'
-      preLoaderRoute: typeof ScheduledTasksRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/logs': {
-      id: '/logs'
-      path: '/logs'
-      fullPath: '/logs'
-      preLoaderRoute: typeof LogsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/history': {
-      id: '/history'
-      path: '/history'
-      fullPath: '/history'
-      preLoaderRoute: typeof HistoryRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/chat': {
-      id: '/chat'
-      path: '/chat'
-      fullPath: '/chat'
-      preLoaderRoute: typeof ChatRouteImport
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/about': {
@@ -185,11 +163,53 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AboutRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+    '/chat': {
+      id: '/chat'
+      path: '/chat'
+      fullPath: '/chat'
+      preLoaderRoute: typeof ChatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/history': {
+      id: '/history'
+      path: '/history'
+      fullPath: '/history'
+      preLoaderRoute: typeof HistoryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/logs': {
+      id: '/logs'
+      path: '/logs'
+      fullPath: '/logs'
+      preLoaderRoute: typeof LogsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/push': {
+      id: '/push'
+      path: '/push'
+      fullPath: '/push'
+      preLoaderRoute: typeof PushRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/scheduled-tasks': {
+      id: '/scheduled-tasks'
+      path: '/scheduled-tasks'
+      fullPath: '/scheduled-tasks'
+      preLoaderRoute: typeof ScheduledTasksRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/terminal': {
+      id: '/terminal'
+      path: '/terminal'
+      fullPath: '/terminal'
+      preLoaderRoute: typeof TerminalRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/workflows': {
+      id: '/workflows'
+      path: '/workflows'
+      fullPath: '/workflows'
+      preLoaderRoute: typeof WorkflowsRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -201,6 +221,7 @@ const rootRouteChildren: RootRouteChildren = {
   ChatRoute: ChatRoute,
   HistoryRoute: HistoryRoute,
   LogsRoute: LogsRoute,
+  PushRoute: PushRoute,
   ScheduledTasksRoute: ScheduledTasksRoute,
   TerminalRoute: TerminalRoute,
   WorkflowsRoute: WorkflowsRoute,

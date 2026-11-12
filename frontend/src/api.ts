@@ -1279,6 +1279,160 @@ export async function disableScheduledTask(
   return res.data;
 }
 
+// ==================== Push Batches API ====================
+
+export type PushItemStatus =
+  | 'pending'
+  | 'dispatching'
+  | 'queued'
+  | 'running'
+  | 'succeeded'
+  | 'failed'
+  | 'cancelled';
+
+export type PushBatchStatus =
+  'pending' | 'running' | 'completed' | 'partial' | 'failed' | 'cancelled';
+
+export interface PushItemPlan {
+  item_id: string;
+  external_item_id: string;
+  device_serial: string;
+  group_name: string;
+  scheduled_at: string;
+  window_end: string;
+}
+
+export interface PushItem {
+  id: string;
+  external_item_id: string;
+  device_serial: string;
+  group_name: string;
+  message: string;
+  mention_all: boolean;
+  scheduled_at: string;
+  window_end: string;
+  status: PushItemStatus;
+  attempts: number;
+  task_id: string | null;
+  device_id: string | null;
+  last_error: string | null;
+  created_at: string;
+  updated_at: string;
+  finished_at: string | null;
+}
+
+export interface PushBatch {
+  id: string;
+  external_batch_id: string;
+  callback_url: string | null;
+  window_start: string;
+  window_end: string;
+  status: PushBatchStatus;
+  created_at: string;
+  updated_at: string;
+  finished_at: string | null;
+  item_count: number;
+  success_count: number;
+  failure_count: number;
+  items?: PushItem[] | null;
+}
+
+export interface PushBatchListResponse {
+  batches: PushBatch[];
+  total: number;
+}
+
+export interface PushWebhook {
+  id: string;
+  event: string;
+  url: string;
+  status: string;
+  attempts: number;
+  next_attempt_at: string;
+  last_error: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DevicePushRule {
+  enabled: boolean;
+  allowed_groups: string[];
+  window_start?: string | null;
+  window_end?: string | null;
+  min_gap_seconds?: number | null;
+}
+
+export interface PushSettings {
+  default_window_start: string;
+  default_window_end: string;
+  min_gap_seconds: number;
+  offline_retry_seconds: number;
+  max_items_per_batch: number;
+  default_callback_url: string | null;
+  device_rules: Record<string, DevicePushRule>;
+}
+
+export type PushSettingsUpdate = Partial<PushSettings>;
+
+export async function listPushBatches(params?: {
+  status?: string;
+  device_serial?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<PushBatchListResponse> {
+  const res = await axios.get<PushBatchListResponse>('/api/push-batches', {
+    params,
+  });
+  return res.data;
+}
+
+export async function getPushBatch(batchId: string): Promise<PushBatch> {
+  const res = await axios.get<PushBatch>(`/api/push-batches/${batchId}`);
+  return res.data;
+}
+
+export async function listPushWebhooks(
+  batchId: string
+): Promise<PushWebhook[]> {
+  const res = await axios.get<PushWebhook[]>(
+    `/api/push-batches/${batchId}/webhooks`
+  );
+  return res.data;
+}
+
+export async function retriggerPushItem(
+  batchId: string,
+  itemId: string
+): Promise<PushItem> {
+  const res = await axios.post<PushItem>(
+    `/api/push-batches/${batchId}/items/${itemId}/retrigger`
+  );
+  return res.data;
+}
+
+export async function cancelPushBatch(
+  batchId: string
+): Promise<{ success: boolean; cancelled: number; message: string }> {
+  const res = await axios.post<{
+    success: boolean;
+    cancelled: number;
+    message: string;
+  }>(`/api/push-batches/${batchId}/cancel`);
+  return res.data;
+}
+
+export async function getPushSettings(): Promise<PushSettings> {
+  const res = await axios.get<PushSettings>('/api/push-settings');
+  return res.data;
+}
+
+export async function updatePushSettings(
+  data: PushSettingsUpdate
+): Promise<PushSettings> {
+  const res = await axios.put<PushSettings>('/api/push-settings', data);
+  return res.data;
+}
+
 export interface DeviceNameResponse {
   success: boolean;
   serial: string;
