@@ -41,6 +41,41 @@ def payload_hash(payload: PushBatchIn) -> str:
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
+def _payload_matches_existing(
+    store: PushStore,
+    batch: dict[str, Any],
+    payload: PushBatchIn,
+    settings: dict[str, Any],
+) -> bool:
+    """Compare the actual content, ignoring the send window.
+
+    Replaying the same items with a freshly computed window must be treated as
+    an idempotent retry; only changed items/callback are a real conflict.
+    """
+    existing_items = store.list_items(str(batch["id"]))
+    if len(existing_items) != len(payload.items):
+        return False
+
+    expected_callback = payload.callback_url or settings.get("default_callback_url")
+    if (batch.get("callback_url") or None) != (expected_callback or None):
+        return False
+
+    by_id = {str(item["external_item_id"]): item for item in existing_items}
+    for item in payload.items:
+        existing = by_id.get(item.external_item_id)
+        if existing is None:
+            return False
+        if str(existing["device_serial"]) != item.device_serial:
+            return False
+        if str(existing["group_name"]) != item.group_name:
+            return False
+        if str(existing["message"]) != item.message:
+            return False
+        if bool(existing["mention_all"]) != item.mention_all:
+            return False
+    return True
+
+
 def load_devices() -> dict[str, Any]:
     """Return serial -> ManagedDevice for currently known devices."""
     from AutoGLM_GUI.device_manager import DeviceManager
@@ -174,7 +209,7 @@ def create_batch(
     fingerprint = payload_hash(payload)
     existing = store.get_batch_by_external_id(payload.external_batch_id)
     if existing is not None:
-        if existing.get("payload_hash") == fingerprint:
+        if _payload_matches_existing(store, existing, payload, settings):
             return existing, store.list_items(existing["id"]), False
         raise IngestError(
             "external_batch_id already exists with different content",
@@ -200,7 +235,9 @@ def create_batch(
     except sqlite3.IntegrityError:
         # Concurrent replay of the same batch.
         existing = store.get_batch_by_external_id(payload.external_batch_id)
-        if existing is not None and existing.get("payload_hash") == fingerprint:
+        if existing is not None and _payload_matches_existing(
+            store, existing, payload, settings
+        ):
             return existing, store.list_items(existing["id"]), False
         raise IngestError(
             "external_batch_id already exists with different content",

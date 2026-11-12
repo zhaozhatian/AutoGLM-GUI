@@ -129,6 +129,27 @@ def test_ingest_creates_batch_and_is_idempotent(env: SimpleNamespace) -> None:
     assert conflict.status_code == 409
 
 
+def test_ingest_replay_with_new_window_is_idempotent(
+    env: SimpleNamespace,
+) -> None:
+    payload = _payload()
+    first = env.client.post(
+        "/api/ingest/push-batches", json=payload, headers=HEADERS
+    ).json()
+
+    now = datetime.now(timezone.utc)
+    replay = {
+        **payload,
+        "window_start": (now + timedelta(hours=2)).isoformat(),
+        "window_end": (now + timedelta(hours=3)).isoformat(),
+    }
+    second = env.client.post("/api/ingest/push-batches", json=replay, headers=HEADERS)
+
+    assert second.status_code == 200
+    assert second.json()["batch_id"] == first["batch_id"]
+    assert second.json()["created"] is False
+
+
 def test_ingest_rejects_unknown_device_and_whitelist(env: SimpleNamespace) -> None:
     unknown = env.client.post(
         "/api/ingest/push-batches",

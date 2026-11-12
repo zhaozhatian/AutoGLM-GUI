@@ -110,8 +110,9 @@ X-API-Key: ...
 }
 ```
 
-- 同一 `external_batch_id` + 完全相同内容重复推送：`200 OK`，`created=false`，不会重复发送。
-- 同一 `external_batch_id` 但内容不同：`409 Conflict`。
+- 同一 `external_batch_id` + 相同 items / callback 重复推送：`200 OK`，`created=false`，即使时间窗不同也不会重复发送。
+- 同一 `external_batch_id` 但 items / callback 不同：`409 Conflict`。
+- 要重发同一批内容，必须使用新的 `external_batch_id`；管理端「重新推送」会追加随机后缀生成新批次。
 - 每条消息的 `scheduled_at` 是服务在窗口内随机离散安排的时间（同一设备保持最小间隔）。
 
 ### 联调（只校验、不落库）
