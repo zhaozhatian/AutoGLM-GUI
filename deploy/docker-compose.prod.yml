@@ -18,18 +18,21 @@ services:
       AUTOGLM_PUSH_TIMEZONE: ${AUTOGLM_PUSH_TIMEZONE:-Asia/Shanghai}
       AUTOGLM_CORS_ORIGINS: ${AUTOGLM_CORS_ORIGINS:-*}
       TZ: ${TZ:-Asia/Shanghai}
-      # Point the container's adb client at the Mac mini gateway:
-      #   Mac mini: adb -a -P 5037 nodaemon server start
-      #   Tailscale IP of the Mac mini, port 5037.
+      # Leave empty to let the container run its own adb server. In that mode the
+      # GUI "配对并连接" dialog works directly: adb pair/connect run inside the
+      # container against the phone's Tailscale IP.
+      # Set to tcp:<gateway>:5037 only if you use an external adb server.
       ADB_SERVER_SOCKET: ${ADB_SERVER_SOCKET:-}
-      # Use the same platform-tools version as the Mac mini. PATH makes
-      # `shutil.which("adb")` pick this before the image's apt adb.
+      # Use the same platform-tools version as the phone-side/gateway adb.
+      # PATH makes `shutil.which("adb")` pick this before the image's apt adb.
       PATH: /opt/platform-tools:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
       AUTOGLM_ADB_PATH: ${AUTOGLM_ADB_PATH:-/opt/platform-tools/adb}
     volumes:
       - ${PLATFORM_TOOLS_DIR:-/opt/platform-tools}:/opt/platform-tools:ro
       - autoglm_config:/root/.config/autoglm
       - autoglm_logs:/app/logs
+      # Persist adb pairing keys (adbkey/adbkey.pub) across container recreation.
+      - autoglm_adb:/root/.android
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
       interval: 30s
@@ -50,3 +53,4 @@ services:
 volumes:
   autoglm_config:
   autoglm_logs:
+  autoglm_adb:

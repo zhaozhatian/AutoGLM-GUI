@@ -78,11 +78,38 @@ caddy run --config deploy/Caddyfile
 
 打开 `https://app.example.com`，用反向代理的 Basic Auth 登录。
 
-## 设备接入（Mac mini 网关 + Docker）
+## 设备接入（无网关 / Mac mini 网关）
 
-不要把手机 ADB 暴露到公网。推荐办公网放一台 Mac mini 作为网关，手机 USB 连它；ECS 上的容器通过 Tailscale 访问 Mac mini 的 adb server（端口 5037）。
+不要把手机 ADB 暴露到公网。测试阶段可以不用网关：手机装 Tailscale + 开无线调试，直接用发送服务 GUI 的「手动配对」连接；规模变大或长期无人值守时，再考虑 Mac mini 网关。
 
-### Mac mini（网关）
+### 方式一：GUI 手动配对（无网关，测试阶段推荐）
+
+手机装 Tailscale 并开启无线调试后，直接用发送服务 GUI：
+
+1. 手机：Tailscale 登录同一 tailnet，关闭电池优化；开发者选项 → 无线调试。
+2. 点「使用配对码配对设备」，记下 **配对端口 + 6 位配对码**；返回无线调试页，记下 **连接端口**。
+3. 打开发送服务 GUI → 添加设备 → 手动配对：
+   - **IP 地址**：手机的 Tailscale IP（`100.x.x.x`），不是手机 LAN IP
+   - **配对端口 / 配对码**：上一步的配对信息
+   - **连接端口**：无线调试页显示的端口（如 `42851`），**不是 5555**
+4. 点「配对并连接」，服务内部执行 `adb pair` + `adb connect`。
+5. 设备出现在列表即可推送。
+
+Docker 配置：
+
+- `ADB_SERVER_SOCKET` 留空，让容器使用自己的 adb server
+- compose 已挂载 `autoglm_adb:/root/.android`，容器重建后配对密钥仍在
+- 如果容器访问不到手机 Tailscale IP，改用 `network_mode: host`，或让容器加入 tailnet
+
+注意：
+
+- 二维码配对依赖 mDNS，Docker/Tailscale 下通常不可用，请用手动配对
+- 手机重启后无线调试端口会变，需要重新配对/更新连接端口
+- 2 台测试手机够用；规模大或长期无人值守，建议方式二
+
+### 方式二：Mac mini 网关（可选，长期无人值守）
+
+办公网放一台 Mac mini 作为网关，手机 USB 连它；ECS 上的容器通过 Tailscale 访问 Mac mini 的 adb server（端口 5037）。
 
 ```bash
 # 1. 安装 platform-tools，版本与 ECS 保持一致（如 37.0.1）
