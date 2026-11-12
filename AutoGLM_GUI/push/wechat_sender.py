@@ -41,14 +41,14 @@ class WeChatSendCancelled(WeChatSendError):
     """Raised when the caller cancels between steps."""
 
 
-Verifier = Callable[[bytes, str], bool]
+TextReader = Callable[[bytes, str], str]
 
 
-def _default_verifier(png: bytes, question: str) -> bool:
+def _default_reader(png: bytes, question: str) -> str:
     # Imported lazily: vision imports WeChatSendError from this module.
-    from AutoGLM_GUI.push.vision import ask_yes_no
+    from AutoGLM_GUI.push.vision import ask_text
 
-    return ask_yes_no(png, question)
+    return ask_text(png, question)
 
 
 @dataclass(frozen=True)
@@ -200,6 +200,42 @@ def _crop(
 
 INPUT_BOX = (0.12, 0.918, 0.80, 0.955)
 SEND_BOX = (0.80, 0.900, 1.0, 0.980)
+CHAT_LIST_BOX = (0.0, 0.930, 0.28, 1.0)
+TITLE_BOX = (0.0, 0.0, 1.0, 0.120)
+SEARCH_INPUT_BOX = (0.10, 0.030, 0.80, 0.085)
+
+
+def _png_bytes(image: Image.Image) -> bytes:
+    buffer = io.BytesIO()
+    image.save(buffer, format="PNG")
+    return buffer.getvalue()
+
+
+def _search_input_has_text(png: bytes, size: tuple[int, int]) -> bool:
+    image = _crop(png, size, SEARCH_INPUT_BOX)
+    try:
+        pixels = image.get_flattened_data()
+    except AttributeError:  # pragma: no cover - older Pillow
+        pixels = image.getdata()
+    dark = sum(
+        1 for red, green, blue in pixels if red < 110 and green < 110 and blue < 110
+    )
+    return dark > 300
+
+
+def _looks_like_chat_list(png: bytes, size: tuple[int, int]) -> bool:
+    """WeChat's active 微信 tab is green in the bottom-left corner."""
+    image = _crop(png, size, CHAT_LIST_BOX)
+    try:
+        pixels = image.get_flattened_data()
+    except AttributeError:  # pragma: no cover - older Pillow
+        pixels = image.getdata()
+    green = sum(
+        1
+        for red, green_channel, blue in pixels
+        if green_channel > 150 and red < 110 and blue < 170
+    )
+    return green > 800
 
 
 def _input_has_text(png: bytes, size: tuple[int, int]) -> bool:
@@ -243,18 +279,14 @@ def _open_wechat(adb: AdbRunner) -> None:
     _sleep(2.5)
 
 
-def _ensure_chat_list(adb: AdbRunner, verify: Verifier) -> None:
+def _ensure_chat_list(adb: AdbRunner, size: tuple[int, int]) -> None:
     """Wait for WeChat's main chat list, pressing back only when needed."""
     for _ in range(5):
         _sleep(2.0)
         if _foreground_package(adb) != WECHAT_PACKAGE:
             _open_wechat(adb)
             continue
-        if verify(
-            adb.screenshot(),
-            "Look at this screenshot. Are the four bottom tabs 微信, 通讯录, "
-            "发现, 我 visible? That means this is the WeChat main chat list.",
-        ):
+        if _looks_like_chat_list(adb.screenshot(), size):
             return
         adb.shell("input", "keyevent", "4")
         _sleep(1.5)
@@ -266,23 +298,45 @@ def _open_group(
     profile: WeChatProfile,
     size: tuple[int, int],
     group: str,
-    verify: Verifier,
+    reader: TextReader,
 ) -> None:
     _tap(adb, profile.point(profile.search_icon, size))
     _sleep(1.5)
     _tap(adb, profile.point(profile.search_input, size))
     _sleep(0.8)
+    if not _wait_input_shown(adb, timeout=2.0):
+        _tap(adb, profile.point(profile.search_input, size))
+        _sleep(0.5)
+
+    # Search keeps the last query; clear it or the group name is appended to it.
+    cleared = False
+    for _ in range(2):
+        _clear_text(adb)
+        _sleep(0.6)
+        if not _search_input_has_text(adb.screenshot(), size):
+            cleared = True
+            break
+    if not cleared:
+        raise WeChatSendError("无法清空微信搜索框")
+
     _input_text(adb, group)
-    _sleep(2.2)
+    _sleep(2.5)
+    search_image = _crop(adb.screenshot(), size, SEARCH_INPUT_BOX)
+    search_text = reader(_png_bytes(search_image), "Read all text in this image.")
+    if group not in search_text:
+        raise WeChatSendError(
+            f"微信搜索框未输入目标群名，期望「{group}」，实际「{search_text[:60]}」"
+        )
+
     _tap(adb, profile.point(profile.first_result, size))
     _sleep(2.2)
     _wait_foreground(adb)
-    if not verify(
-        adb.screenshot(),
-        "Look at the top center title area of this WeChat chat page. Does it "
-        f"contain the text: {group} ?",
-    ):
-        raise WeChatSendError(f"进入的群聊标题与目标不一致，期望「{group}」")
+    title_image = _crop(adb.screenshot(), size, TITLE_BOX)
+    title_text = reader(_png_bytes(title_image), "Read all text in this image.")
+    if group not in title_text:
+        raise WeChatSendError(
+            f"进入的群聊标题与目标不一致，期望「{group}」，实际「{title_text[:60]}」"
+        )
 
 
 def send_group_message(
@@ -294,7 +348,7 @@ def send_group_message(
     adb_path: str | None = None,
     profile: WeChatProfile = DEFAULT_PROFILE,
     cancel_check: Callable[[], bool] | None = None,
-    verifier: Verifier | None = None,
+    reader: TextReader | None = None,
 ) -> dict[str, Any]:
     """Send ``message`` to the WeChat group ``group_name`` on one device.
 
@@ -306,7 +360,7 @@ def send_group_message(
     if not message.strip():
         raise WeChatSendError("message is empty")
 
-    verify = verifier or _default_verifier
+    read = reader or _default_reader
     adb = AdbRunner(adb_path or resolve_adb_path(), device_id)
     size = _screen_size(adb)
     original_ime = _current_ime(adb)
@@ -316,11 +370,11 @@ def send_group_message(
         _check_cancel(cancel_check)
         adb.shell("wm", "dismiss-keyguard")
         _open_wechat(adb)
-        _ensure_chat_list(adb, verify)
+        _ensure_chat_list(adb, size)
         steps.append("wechat_ready")
 
         _set_ime(adb, ADB_KEYBOARD_IME)
-        _open_group(adb, profile, size, group_name, verify)
+        _open_group(adb, profile, size, group_name, read)
         steps.append("group_opened")
 
         _tap(adb, profile.point(profile.chat_input, size))
@@ -353,12 +407,11 @@ def send_group_message(
                 _sleep(1.6)
                 _tap(adb, profile.point(profile.mention_all, size))
                 _sleep(1.4)
-                if verify(
-                    adb.screenshot(),
-                    "Look at the message input box at the bottom of this WeChat "
-                    "chat page. Does it contain a selected mention of 所有人, "
-                    "shown as @所有人 ?",
-                ):
+                input_image = _crop(adb.screenshot(), size, INPUT_BOX)
+                input_text = read(
+                    _png_bytes(input_image), "Read all text in this image."
+                )
+                if "所有人" in input_text:
                     selected = True
                     break
                 logger.warning(

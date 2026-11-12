@@ -102,7 +102,11 @@ def get_push_batch(batch_id: str) -> PushBatchOut:
     batch = push_store.get_batch(batch_id)
     if batch is None:
         raise HTTPException(status_code=404, detail="Batch not found")
-    return _batch_out(batch, items=push_store.list_items(batch_id))
+    return _batch_out(
+        batch,
+        items=push_store.list_items(batch_id),
+        counts=push_store.batch_counts(batch_id),
+    )
 
 
 @router.get(

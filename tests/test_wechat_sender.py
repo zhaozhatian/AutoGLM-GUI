@@ -14,6 +14,7 @@ from AutoGLM_GUI.push.wechat_sender import (
     WeChatSendError,
     _has_send_button,
     _input_has_text,
+    _looks_like_chat_list,
 )
 from AutoGLM_GUI.task_manager import TaskManager
 from AutoGLM_GUI.task_store import TaskStatus, TaskStore
@@ -56,6 +57,17 @@ def test_send_button_detection() -> None:
     )
     assert _has_send_button(without, (1080, 2400)) is False
     assert _has_send_button(with_button, (1080, 2400)) is True
+
+
+def test_chat_list_detection_uses_green_wechat_tab() -> None:
+    chat_list = _png(
+        lambda draw: draw.rectangle((20, 2250, 250, 2380), fill=(7, 193, 96))
+    )
+    chat_page = _png(
+        lambda draw: draw.rectangle((40, 2220, 840, 2350), fill=(255, 255, 255))
+    )
+    assert _looks_like_chat_list(chat_list, (1080, 2400)) is True
+    assert _looks_like_chat_list(chat_page, (1080, 2400)) is False
 
 
 def _create_push_task(store: TaskStore) -> dict:
