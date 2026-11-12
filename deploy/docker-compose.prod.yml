@@ -1,0 +1,39 @@
+services:
+  autoglm:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    image: autoglm-gui:prod
+    restart: unless-stopped
+    # Keep the API on loopback and let Caddy terminate TLS + auth.
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      AUTOGLM_BASE_URL: ${AUTOGLM_BASE_URL}
+      AUTOGLM_MODEL_NAME: ${AUTOGLM_MODEL_NAME:-autoglm-phone}
+      AUTOGLM_API_KEY: ${AUTOGLM_API_KEY}
+      AUTOGLM_INGEST_TOKEN: ${AUTOGLM_INGEST_TOKEN:?set AUTOGLM_INGEST_TOKEN}
+      AUTOGLM_WEBHOOK_SECRET: ${AUTOGLM_WEBHOOK_SECRET:?set AUTOGLM_WEBHOOK_SECRET}
+      AUTOGLM_WEBHOOK_ALLOWED_HOSTS: ${AUTOGLM_WEBHOOK_ALLOWED_HOSTS:-}
+      AUTOGLM_PUSH_TIMEZONE: ${AUTOGLM_PUSH_TIMEZONE:-Asia/Shanghai}
+      AUTOGLM_CORS_ORIGINS: ${AUTOGLM_CORS_ORIGINS:-*}
+      TZ: ${TZ:-Asia/Shanghai}
+    volumes:
+      - autoglm_config:/root/.config/autoglm
+      - autoglm_logs:/app/logs
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    # Single replica only. The service keeps device state, agent instances and
+    # the task queue in memory plus SQLite under /root/.config/autoglm.
+    # Do not scale this service horizontally.
+    #
+    # On Linux hosts that need mDNS discovery (Wireless debugging pairing),
+    # add: network_mode: host and drop the ports mapping.
+
+volumes:
+  autoglm_config:
+  autoglm_logs:
