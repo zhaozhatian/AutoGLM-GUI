@@ -9,6 +9,7 @@ from AutoGLM_GUI.adb.timing import TIMING_CONFIG
 from AutoGLM_GUI.device_protocol import AsyncDeviceProtocol
 from AutoGLM_GUI.trace import trace_sleep_async, trace_span
 
+from .text_utils import strip_wrapping_quotes
 from .types import ActionResult
 
 
@@ -238,6 +239,8 @@ class AsyncActionHandler:
         self, action: dict[str, Any], width: int, height: int
     ) -> ActionResult:
         text = action.get("text", "")
+        if isinstance(text, str):
+            text = strip_wrapping_quotes(text)
 
         original_ime = await self.device.detect_and_set_adb_keyboard()
         need_restore = self._ADB_IME not in original_ime
@@ -289,9 +292,7 @@ class AsyncActionHandler:
         )
         duration_ms = self._swipe_duration(start_x, start_y, end_x, end_y)
 
-        await self.device.swipe(
-            start_x, start_y, end_x, end_y, duration_ms=duration_ms
-        )
+        await self.device.swipe(start_x, start_y, end_x, end_y, duration_ms=duration_ms)
         return ActionResult(True, False)
 
     async def _handle_back(
